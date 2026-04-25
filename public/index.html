@@ -84,7 +84,7 @@ async function sendMessage() {
   const chatbox = document.getElementById("chatbox");
   chatbox.innerHTML += "<p><b>You:</b> " + message + "</p>";
 
-  const response = await fetch("https://chatbot-0gdw.onrender.com", {
+  const response = await fetch("https://chatbot-0gdw.onrender.com/chat", {
     method: "POST",
     headers: {
       "Content-Type": "application/json"
