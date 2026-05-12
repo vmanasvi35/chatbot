@@ -18,16 +18,38 @@ app.post("/chat", async (req, res) => {
     const weather = req.body.weather;
 
     console.log("Message:", userMessage);
-    console.log("FULL WEATHER OBJECT:", JSON.stringify(weather, null, 2));
+    console.log("FULL WEATHER OBJECT:", JSON.stringify(weather || null, null, 2));
 
-    // Normalize weather data to handle any format
-    const normalizedWeather = {
-      city: weather.city || "Unknown",
-      temp: weather.temp || weather.temperature || weather.main?.temp,
-      condition: weather.condition || weather.description || weather.weather?.[0]?.description
-    };
+    const messages = [];
 
-    console.log("Normalized weather:", normalizedWeather);
+    if (weather) {
+      // Normalize weather data to handle common weather API formats.
+      const normalizedWeather = {
+        city: weather.city || weather.name || "Unknown",
+        temp: weather.temp || weather.temperature || weather.main?.temp,
+        condition: weather.condition || weather.description || weather.weather?.[0]?.description
+      };
+
+      console.log("Normalized weather:", normalizedWeather);
+
+      messages.push({
+        role: "user",
+        content: `You are being used inside a weather app. You have weather information for the following city:
+
+City: ${normalizedWeather.city}
+Temperature: ${normalizedWeather.temp}°C
+Condition: ${normalizedWeather.condition}
+
+Using this weather data, answer the user's weather-related question. If the question is not about weather, answer normally.
+
+Question: ${userMessage}`
+      });
+    } else {
+      messages.push({
+        role: "user",
+        content: userMessage
+      });
+    }
 
     const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
       method: "POST",
@@ -37,20 +59,7 @@ app.post("/chat", async (req, res) => {
       },
       body: JSON.stringify({
         model: "openai/gpt-3.5-turbo",
-        messages: [
-          {
-            role: "user",
-            content: `You have weather information for the following city:
-
-City: ${normalizedWeather.city}
-Temperature: ${normalizedWeather.temp}°C
-Condition: ${normalizedWeather.condition}
-
-Using ONLY this weather data, answer the user's question.
-
-Question: ${userMessage}`
-          }
-        ]
+        messages
       })
     });
 
