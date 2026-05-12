@@ -12,6 +12,43 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+function getForecastSummary(weather) {
+  const forecastDays = weather.forecast?.forecastday
+    || weather.weatherData?.forecast?.forecastday
+    || weather.forecastday;
+
+  if (Array.isArray(forecastDays) && forecastDays.length > 0) {
+    return forecastDays.slice(0, 3).map((day) => {
+      const dayData = day.day || day;
+      const condition = dayData.condition?.text || dayData.condition || dayData.description || "Unknown";
+      const rainChance = dayData.daily_chance_of_rain || dayData.chance_of_rain || dayData.rainChance;
+      const maxTemp = dayData.maxtemp_c || dayData.maxTemp || dayData.temp?.max;
+      const minTemp = dayData.mintemp_c || dayData.minTemp || dayData.temp?.min;
+
+      return {
+        date: day.date || dayData.date,
+        condition,
+        rainChance,
+        maxTemp,
+        minTemp
+      };
+    });
+  }
+
+  const forecastList = weather.list || weather.weatherData?.list;
+
+  if (Array.isArray(forecastList) && forecastList.length > 0) {
+    return forecastList.slice(0, 8).map((item) => ({
+      time: item.dt_txt || item.time,
+      temp: item.main?.temp || item.temp || item.temp_c,
+      condition: item.weather?.[0]?.description || item.condition?.text || item.condition,
+      rainChance: item.pop !== undefined ? Math.round(item.pop * 100) : item.chance_of_rain
+    }));
+  }
+
+  return null;
+}
+
 app.post("/chat", async (req, res) => {
   try {
     const userMessage = req.body.message;
@@ -46,7 +83,22 @@ app.post("/chat", async (req, res) => {
           || weather.weatherData?.current?.condition?.text
       };
 
+      const forecastSummary = getForecastSummary(weather);
+
       console.log("Normalized weather:", normalizedWeather);
+      console.log("Forecast summary:", forecastSummary);
+
+      const hasWeatherData = normalizedWeather.city !== "Unknown"
+        && normalizedWeather.temp !== undefined
+        && normalizedWeather.temp !== null
+        && normalizedWeather.temp !== ""
+        && normalizedWeather.condition;
+
+      if (!hasWeatherData) {
+        return res.json({
+          reply: "Please search for a city first, then I can answer weather-related questions for that location."
+        });
+      }
 
       messages.push({
         role: "user",
@@ -55,8 +107,17 @@ app.post("/chat", async (req, res) => {
 City: ${normalizedWeather.city}
 Temperature: ${normalizedWeather.temp}°C
 Condition: ${normalizedWeather.condition}
+Forecast: ${forecastSummary ? JSON.stringify(forecastSummary) : "No forecast data provided"}
 
-Using this weather data, answer the user's weather-related question. If the question is not about weather, answer normally.
+Answer in a friendly, practical way.
+- If rain or high rain chance is shown, suggest carrying an umbrella or raincoat.
+- If it is hot, suggest light breathable clothing, water, and shade.
+- If it is cold, suggest warm layers.
+- If forecast data is provided, use it for upcoming-weather questions like "later", "soon", "today", or "tomorrow".
+- If forecast data is not provided, do not invent future weather. Say you only have the current conditions.
+- Keep replies short and natural.
+
+If the question is not about weather, answer normally.
 
 Question: ${userMessage}`
       });

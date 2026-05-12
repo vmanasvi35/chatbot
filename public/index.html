@@ -6,8 +6,13 @@
     body { font-family: Arial; }
     #chatbox { width: 300px; height: 400px; border: 1px solid #ccc; overflow-y: auto; padding: 10px; color: black; }
     #userInput { color: black; }
-    input { width: 70%; }
-    button { width: 25%; }
+    .controls { display: flex; gap: 6px; width: 322px; margin-top: 8px; }
+    .suggestions { display: flex; flex-wrap: wrap; gap: 6px; width: 322px; margin-top: 8px; }
+    input { flex: 1; min-width: 0; }
+    button { width: 48px; }
+    #sendButton { width: 64px; }
+    .suggestionButton { width: auto; padding: 6px 8px; font-size: 12px; }
+    .active { background: #d9f2ff; }
   </style>
 </head>
 <body>
@@ -16,11 +21,57 @@
 
 <div id="chatbox"></div>
 
-<input id="userInput" placeholder="Type message..." />
-<button onclick="sendMessage()">Send</button>
+<div class="controls">
+  <input id="userInput" placeholder="Type message..." />
+  <button id="sendButton" onclick="sendMessage()">Send</button>
+  <button id="micButton" onclick="startVoiceInput()" title="Voice input">Mic</button>
+  <button id="voiceButton" onclick="toggleVoiceReply()" title="Voice reply">Voice</button>
+</div>
+
+<div class="suggestions">
+  <button class="suggestionButton" onclick="askSuggestedQuestion('Should I carry an umbrella?')">Umbrella?</button>
+  <button class="suggestionButton" onclick="askSuggestedQuestion('What should I wear today?')">What to wear?</button>
+  <button class="suggestionButton" onclick="askSuggestedQuestion('Will it rain soon?')">Rain soon?</button>
+  <button class="suggestionButton" onclick="askSuggestedQuestion('How does the weather feel outside?')">Feels like?</button>
+</div>
 
 <script>
 window.weatherData = null;
+let voiceReplyEnabled = true;
+let recognition = null;
+
+const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+if (SpeechRecognition) {
+  recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  recognition.addEventListener("start", () => {
+    document.getElementById("micButton").classList.add("active");
+  });
+
+  recognition.addEventListener("end", () => {
+    document.getElementById("micButton").classList.remove("active");
+  });
+
+  recognition.addEventListener("result", (event) => {
+    const transcript = event.results[0][0].transcript;
+    document.getElementById("userInput").value = transcript;
+    sendMessage();
+  });
+
+  recognition.addEventListener("error", (event) => {
+    console.error("Voice input error:", event.error);
+    alert("Voice input is not available right now. Please type your message.");
+  });
+} else {
+  window.addEventListener("DOMContentLoaded", () => {
+    document.getElementById("micButton").disabled = true;
+    document.getElementById("micButton").title = "Voice input is not supported in this browser";
+  });
+}
 
 window.addEventListener("message", (event) => {
   if (!event.data || event.data.type !== "weather-data") {
@@ -31,9 +82,43 @@ window.addEventListener("message", (event) => {
   console.log("Weather received from parent app:", window.weatherData);
 });
 
+function startVoiceInput() {
+  if (!recognition) {
+    alert("Voice input is not supported in this browser.");
+    return;
+  }
+
+  recognition.start();
+}
+
+function toggleVoiceReply() {
+  voiceReplyEnabled = !voiceReplyEnabled;
+  document.getElementById("voiceButton").classList.toggle("active", voiceReplyEnabled);
+}
+
+function speakReply(reply) {
+  if (!voiceReplyEnabled || !window.speechSynthesis) {
+    return;
+  }
+
+  window.speechSynthesis.cancel();
+  const utterance = new SpeechSynthesisUtterance(reply);
+  utterance.lang = "en-US";
+  window.speechSynthesis.speak(utterance);
+}
+
+function askSuggestedQuestion(question) {
+  document.getElementById("userInput").value = question;
+  sendMessage();
+}
+
 async function sendMessage() {
   const input = document.getElementById("userInput");
-  const message = input.value;
+  const message = input.value.trim();
+
+  if (!message) {
+    return;
+  }
 
   console.log("Sending weather:", window.weatherData);
 
@@ -54,9 +139,14 @@ async function sendMessage() {
 
   const data = await response.json();
   chatbox.innerHTML += "<p><b>Bot:</b> " + data.reply + "</p>";
+  speakReply(data.reply);
 
   input.value = "";
 }
+
+window.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("voiceButton").classList.toggle("active", voiceReplyEnabled);
+});
 </script>
 
 </body>
