@@ -25,9 +25,25 @@ app.post("/chat", async (req, res) => {
     if (weather) {
       // Normalize weather data to handle common weather API formats.
       const normalizedWeather = {
-        city: weather.city || weather.name || "Unknown",
-        temp: weather.temp || weather.temperature || weather.main?.temp,
-        condition: weather.condition || weather.description || weather.weather?.[0]?.description
+        city: weather.city
+          || weather.name
+          || weather.location?.name
+          || weather.weatherData?.location?.name
+          || "Unknown",
+
+        temp: weather.temp
+          || weather.temperature
+          || weather.temp_c
+          || weather.main?.temp
+          || weather.current?.temp_c
+          || weather.weatherData?.current?.temp_c,
+
+        condition: weather.condition
+          || weather.description
+          || weather.weather?.[0]?.description
+          || weather.text
+          || weather.current?.condition?.text
+          || weather.weatherData?.current?.condition?.text
       };
 
       console.log("Normalized weather:", normalizedWeather);
